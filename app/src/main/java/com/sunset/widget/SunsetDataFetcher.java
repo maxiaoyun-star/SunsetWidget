@@ -12,7 +12,10 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.zip.GZIPInputStream;
+
+import javax.net.ssl.SSLException;
 
 public class SunsetDataFetcher {
 
@@ -172,28 +175,43 @@ public class SunsetDataFetcher {
         return out.toByteArray();
     }
 
-    /** 把异常翻译成小组件底部能放下的短原因。 */
+    /** 把异常翻译成小组件底部能放下的短原因，尽量精确到类型，便于定位。 */
     private static String describe(Exception e) {
         if (e instanceof SocketTimeoutException) {
-            return "网络超时";
+            return "超时";
         }
         if (e instanceof UnknownHostException) {
             return "域名解析失败";
         }
         if (e instanceof ConnectException) {
-            return "连不上服务器";
+            return "连接失败";
+        }
+        if (e instanceof SSLException) {
+            return "SSL握手失败";
+        }
+        if (e instanceof SecurityException) {
+            return "权限不足";
         }
         String msg = e.getMessage();
-        if (msg == null || msg.isEmpty()) {
-            return "网络错误";
+        if (msg != null) {
+            if (msg.startsWith("HTTP ")) {
+                return msg;
+            }
+            if ("NOT_JSON".equals(msg)) {
+                return "返回数据异常";
+            }
+            String low = msg.toLowerCase(Locale.US);
+            if (low.contains("reset")) {
+                return "连接被重置";
+            }
+            if (low.contains("cleartext")) {
+                return "明文被禁止";
+            }
+            if (low.contains("unreachable") || low.contains("no route")) {
+                return "网络不可达";
+            }
         }
-        if (msg.startsWith("HTTP ")) {
-            return msg;
-        }
-        if ("NOT_JSON".equals(msg)) {
-            return "返回数据异常";
-        }
-        return "网络错误";
+        return e.getClass().getSimpleName();
     }
 
     /** 解析 "0.022（微烧）" -> {"0.022", "微烧"} */
