@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- sunsetbot.top 2026-09 换用了 Sectigo R46 新根,不在部分安卓系统信任库中,
+         这里额外信任它,同时保留系统证书,避免 SSL 握手失败 -->
+    <base-config>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/sectigo_r46" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
