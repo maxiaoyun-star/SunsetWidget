@@ -96,15 +96,13 @@ public class SunsetWidgetProvider extends AppWidgetProvider {
         }
         SunsetDataFetcher.DayData tomorrow = SunsetDataFetcher.fetchDay(city, effectiveSource, false);
 
-        views.setTextViewText(R.id.tv_today_level, today.level);
-        views.setTextViewText(R.id.tv_today_quality, today.hasData ? "鲜艳度 " + today.quality : "鲜艳度 —");
-        views.setTextViewText(R.id.tv_today_sunrise, "日出 " + today.sunrise);
-        views.setTextViewText(R.id.tv_today_sunset, "日落 " + today.sunset);
+        views.setTextViewText(R.id.tv_today_sunset_level, "日落 " + today.level);
+        views.setTextViewText(R.id.tv_today_sunrise_level, "日出 " + today.sunriseLevel);
+        views.setTextViewText(R.id.tv_today_times, "日出 " + today.sunrise + " · 日落 " + today.sunset);
 
-        views.setTextViewText(R.id.tv_tomorrow_level, tomorrow.level);
-        views.setTextViewText(R.id.tv_tomorrow_quality, tomorrow.hasData ? "鲜艳度 " + tomorrow.quality : "鲜艳度 —");
-        views.setTextViewText(R.id.tv_tomorrow_sunrise, "日出 " + tomorrow.sunrise);
-        views.setTextViewText(R.id.tv_tomorrow_sunset, "日落 " + tomorrow.sunset);
+        views.setTextViewText(R.id.tv_tomorrow_sunset_level, "日落 " + tomorrow.level);
+        views.setTextViewText(R.id.tv_tomorrow_sunrise_level, "日出 " + tomorrow.sunriseLevel);
+        views.setTextViewText(R.id.tv_tomorrow_times, "日出 " + tomorrow.sunrise + " · 日落 " + tomorrow.sunset);
 
         views.setTextViewText(R.id.btn_source, effectiveSource);
         views.setTextViewText(R.id.tv_footer, footerText(city, today, tomorrow, effectiveSource));

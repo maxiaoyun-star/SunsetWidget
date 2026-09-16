@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_bg"
-    android:padding="8dp">
+    android:padding="10dp">
 
     <!-- 顶部栏：标题 + 数据源切换 + 刷新 -->
     <LinearLayout
@@ -19,7 +19,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="火烧云预测 v4"
+            android:text="火烧云预测 v5"
             android:textColor="@color/text_primary"
             android:textSize="13sp"
             android:textStyle="bold" />
@@ -59,7 +59,7 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="8dp"
         android:orientation="horizontal">
 
         <!-- 左卡片：今天 -->
@@ -70,7 +70,10 @@
             android:orientation="vertical"
             android:background="@drawable/card_bg"
             android:gravity="center_horizontal"
-            android:padding="6dp">
+            android:paddingLeft="4dp"
+            android:paddingRight="4dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="6dp">
 
             <TextView
                 android:id="@+id/tv_today_label"
@@ -82,47 +85,41 @@
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/tv_today_level"
+                android:id="@+id/tv_today_sunset_level"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="—"
+                android:layout_marginTop="6dp"
+                android:text="日落 —"
                 android:textColor="@color/sunset_gold"
-                android:textSize="22sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/tv_today_quality"
+                android:id="@+id/tv_today_sunrise_level"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="鲜艳度 —"
+                android:layout_marginTop="2dp"
+                android:text="日出 —"
+                android:textColor="@color/sunset_pink"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_today_times"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="日出 —:— · 日落 —:—"
                 android:textColor="@color/text_dim"
-                android:textSize="10sp" />
-
-            <TextView
-                android:id="@+id/tv_today_sunrise"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:text="日出 —:—"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
-
-            <TextView
-                android:id="@+id/tv_today_sunset"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="日落 —:—"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textSize="9sp" />
         </LinearLayout>
 
         <!-- 中间分隔线 -->
         <LinearLayout
             android:layout_width="1dp"
             android:layout_height="match_parent"
-            android:layout_marginLeft="4dp"
-            android:layout_marginRight="4dp"
+            android:layout_marginLeft="5dp"
+            android:layout_marginRight="5dp"
             android:background="@color/divider"
             android:orientation="vertical" />
 
@@ -134,7 +131,10 @@
             android:orientation="vertical"
             android:background="@drawable/card_bg"
             android:gravity="center_horizontal"
-            android:padding="6dp">
+            android:paddingLeft="4dp"
+            android:paddingRight="4dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="6dp">
 
             <TextView
                 android:id="@+id/tv_tomorrow_label"
@@ -146,39 +146,33 @@
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/tv_tomorrow_level"
+                android:id="@+id/tv_tomorrow_sunset_level"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:text="—"
+                android:layout_marginTop="6dp"
+                android:text="日落 —"
                 android:textColor="@color/sunset_gold"
-                android:textSize="22sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <TextView
-                android:id="@+id/tv_tomorrow_quality"
+                android:id="@+id/tv_tomorrow_sunrise_level"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="鲜艳度 —"
+                android:layout_marginTop="2dp"
+                android:text="日出 —"
+                android:textColor="@color/sunset_pink"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tv_tomorrow_times"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="日出 —:— · 日落 —:—"
                 android:textColor="@color/text_dim"
-                android:textSize="10sp" />
-
-            <TextView
-                android:id="@+id/tv_tomorrow_sunrise"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:text="日出 —:—"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
-
-            <TextView
-                android:id="@+id/tv_tomorrow_sunset"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="日落 —:—"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
+                android:textSize="9sp" />
         </LinearLayout>
     </LinearLayout>
 
@@ -187,7 +181,7 @@
         android:id="@+id/tv_footer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
+        android:layout_marginTop="6dp"
         android:gravity="center"
         android:text="加载中…"
         android:textColor="@color/text_dim"

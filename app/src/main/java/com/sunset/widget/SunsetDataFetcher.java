@@ -33,6 +33,8 @@ public class SunsetDataFetcher {
         public boolean hasData = false;
         public String level = "待更新";
         public String quality = "—";
+        public String sunriseLevel = "待更新";
+        public String sunriseQuality = "—";
         public String sunrise = "—:—";
         public String sunset = "—:—";
         public String cityDisplay = "";
@@ -71,10 +73,13 @@ public class SunsetDataFetcher {
         data.sunset = parseTime(sunset.optString("tb_event_time", ""));
         data.hasData = !"—".equals(data.level) && !"待更新".equals(data.level);
 
-        // 日出时间单独获取，失败不影响日落预测
+        // 日出时间与火烧云预测单独获取，失败不影响日落预测
         try {
             JSONObject sunrise = fetchEvent(city, source, sunriseEvent);
             data.sunrise = parseTime(sunrise.optString("tb_event_time", ""));
+            String[] sq = parseQuality(sunrise.optString("tb_quality", ""));
+            data.sunriseQuality = sq[0];
+            data.sunriseLevel = sq[1];
         } catch (Exception ignored) {
         }
 
