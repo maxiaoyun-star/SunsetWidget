@@ -2,17 +2,29 @@ package com.sunset.widget;
 
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.net.ConnectException;
 import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.util.zip.GZIPInputStream;
 
 public class SunsetDataFetcher {
 
     private static final String BASE_URL = "https://sunsetbot.top/detailed/";
+    private static final String SITE_URL = "https://sunsetbot.top/";
+    // 网站前面挂了 CDN，请求头对齐网站自身的 jQuery AJAX，免得被当成爬虫拦掉
+    private static final String USER_AGENT =
+            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) "
+                    + "Chrome/120.0.0.0 Mobile Safari/537.36";
+    private static final int ATTEMPTS = 3;
+    private static final int CONNECT_TIMEOUT_MS = 8000;
+    private static final int READ_TIMEOUT_MS = 10000;
 
     public static class DayData {
         public boolean hasData = false;
@@ -21,30 +33,40 @@ public class SunsetDataFetcher {
         public String sunrise = "—:—";
         public String sunset = "—:—";
         public String cityDisplay = "";
+        /** 请求失败时的简短原因；为空表示请求本身是成功的。 */
+        public String error = "";
     }
 
     /**
      * 拉取某一天的火烧云预测数据。
      *
+     * <p>网络问题不抛异常，而是把原因写进 {@link DayData#error}，这样可以和"该时次还没有
+     * 预报"区分开：前者是取数失败，后者是数据源确实没生成。
+     *
      * @param city   城市简称，如 "长春"
      * @param source 数据源，EC 或 GFS
      * @param today  true 为今天，false 为明天
      */
-    public static DayData fetchDay(String city, String source, boolean today) throws Exception {
+    public static DayData fetchDay(String city, String source, boolean today) {
         String sunsetEvent = today ? "set_1" : "set_2";
         String sunriseEvent = today ? "rise_1" : "rise_2";
 
         DayData data = new DayData();
 
-        // 日落是火烧云预测的核心，网络失败则向上抛异常
-        JSONObject sunset = fetchEvent(city, source, sunsetEvent);
+        JSONObject sunset;
+        try {
+            sunset = fetchEvent(city, source, sunsetEvent);
+        } catch (Exception e) {
+            data.error = describe(e);
+            return data;
+        }
+
         data.cityDisplay = sunset.optString("display_city_name", "");
-        String qualityRaw = sunset.optString("tb_quality", "");
-        String[] q = parseQuality(qualityRaw);
+        String[] q = parseQuality(sunset.optString("tb_quality", ""));
         data.quality = q[0];
         data.level = q[1];
         data.sunset = parseTime(sunset.optString("tb_event_time", ""));
-        data.hasData = !data.level.isEmpty() && !"—".equals(data.level) && !"待更新".equals(data.level);
+        data.hasData = !"—".equals(data.level) && !"待更新".equals(data.level);
 
         // 日出时间单独获取，失败不影响日落预测
         try {
@@ -56,7 +78,28 @@ public class SunsetDataFetcher {
         return data;
     }
 
+    /** 源站偶发 525，单次请求失败就重试几次。 */
     private static JSONObject fetchEvent(String city, String source, String event) throws Exception {
+        Exception last = null;
+        for (int attempt = 1; attempt <= ATTEMPTS; attempt++) {
+            try {
+                return fetchEventOnce(city, source, event);
+            } catch (Exception e) {
+                last = e;
+                if (attempt < ATTEMPTS) {
+                    try {
+                        Thread.sleep(500L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+        throw last;
+    }
+
+    private static JSONObject fetchEventOnce(String city, String source, String event) throws Exception {
         String queryId = String.valueOf(System.currentTimeMillis() % 10000000);
         StringBuilder sb = new StringBuilder(BASE_URL);
         sb.append("?query_id=").append(queryId);
@@ -69,21 +112,28 @@ public class SunsetDataFetcher {
 
         HttpURLConnection conn = null;
         try {
-            URL url = new URL(sb.toString());
-            conn = (HttpURLConnection) url.openConnection();
+            conn = (HttpURLConnection) new URL(sb.toString()).openConnection();
             conn.setRequestMethod("GET");
-            conn.setConnectTimeout(12000);
-            conn.setReadTimeout(12000);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) SunsetWidget/1.0");
-            conn.setRequestProperty("Accept", "application/json");
+            conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            conn.setReadTimeout(READ_TIMEOUT_MS);
+            conn.setInstanceFollowRedirects(true);
+            conn.setRequestProperty("User-Agent", USER_AGENT);
+            conn.setRequestProperty("Accept", "application/json, text/javascript, */*; q=0.01");
+            conn.setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9");
+            conn.setRequestProperty("X-Requested-With", "XMLHttpRequest");
+            conn.setRequestProperty("Referer", SITE_URL);
 
             int code = conn.getResponseCode();
             if (code != HttpURLConnection.HTTP_OK) {
                 throw new Exception("HTTP " + code);
             }
 
-            String body = readStream(conn.getInputStream());
-            return new JSONObject(body);
+            String body = readBody(conn);
+            try {
+                return new JSONObject(body);
+            } catch (Exception e) {
+                throw new Exception("NOT_JSON");
+            }
         } finally {
             if (conn != null) {
                 conn.disconnect();
@@ -91,15 +141,59 @@ public class SunsetDataFetcher {
         }
     }
 
-    private static String readStream(InputStream is) throws Exception {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-        StringBuilder sb = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            sb.append(line);
+    /**
+     * 读取响应体。服务器可能返回 gzip 压缩内容（CDN 会根据 Accept-Encoding 决定），
+     * 系统没有自动解压时按魔数手动解压，否则 JSON 解析必然失败。
+     */
+    private static String readBody(HttpURLConnection conn) throws Exception {
+        byte[] bytes = readAll(conn.getInputStream());
+        if (bytes.length > 2 && (bytes[0] & 0xFF) == 0x1F && (bytes[1] & 0xFF) == 0x8B) {
+            GZIPInputStream gz = new GZIPInputStream(new ByteArrayInputStream(bytes));
+            try {
+                bytes = readAll(gz);
+            } finally {
+                gz.close();
+            }
         }
-        reader.close();
-        return sb.toString();
+        return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    private static byte[] readAll(InputStream is) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[4096];
+        int n;
+        try {
+            while ((n = is.read(buf)) != -1) {
+                out.write(buf, 0, n);
+            }
+        } finally {
+            is.close();
+        }
+        return out.toByteArray();
+    }
+
+    /** 把异常翻译成小组件底部能放下的短原因。 */
+    private static String describe(Exception e) {
+        if (e instanceof SocketTimeoutException) {
+            return "网络超时";
+        }
+        if (e instanceof UnknownHostException) {
+            return "域名解析失败";
+        }
+        if (e instanceof ConnectException) {
+            return "连不上服务器";
+        }
+        String msg = e.getMessage();
+        if (msg == null || msg.isEmpty()) {
+            return "网络错误";
+        }
+        if (msg.startsWith("HTTP ")) {
+            return msg;
+        }
+        if ("NOT_JSON".equals(msg)) {
+            return "返回数据异常";
+        }
+        return "网络错误";
     }
 
     /** 解析 "0.022（微烧）" -> {"0.022", "微烧"} */

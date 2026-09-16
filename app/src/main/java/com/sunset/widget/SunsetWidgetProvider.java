@@ -82,17 +82,19 @@ public class SunsetWidgetProvider extends AppWidgetProvider {
         AppWidgetManager mgr = AppWidgetManager.getInstance(context);
         RemoteViews views = buildBaseViews(context, widgetId, source);
 
+        SunsetDataFetcher.DayData today = SunsetDataFetcher.fetchDay(city, source, true);
         String effectiveSource = source;
-        SunsetDataFetcher.DayData today = fetchDaySafe(city, source, true);
-        if (!today.hasData) {
+        // 只有"请求成功但这个数据源没有这座城市的数据"才值得换另一个数据源；
+        // 请求本身失败时换数据源没有意义，只会白白多等一轮。
+        if (!today.hasData && today.error.isEmpty()) {
             String other = otherSource(source);
-            SunsetDataFetcher.DayData t2 = fetchDaySafe(city, other, true);
-            if (t2.hasData) {
-                today = t2;
+            SunsetDataFetcher.DayData alt = SunsetDataFetcher.fetchDay(city, other, true);
+            if (alt.hasData) {
+                today = alt;
                 effectiveSource = other;
             }
         }
-        SunsetDataFetcher.DayData tomorrow = fetchDaySafe(city, effectiveSource, false);
+        SunsetDataFetcher.DayData tomorrow = SunsetDataFetcher.fetchDay(city, effectiveSource, false);
 
         views.setTextViewText(R.id.tv_today_level, today.level);
         views.setTextViewText(R.id.tv_today_quality, today.hasData ? "鲜艳度 " + today.quality : "鲜艳度 —");
@@ -105,19 +107,31 @@ public class SunsetWidgetProvider extends AppWidgetProvider {
         views.setTextViewText(R.id.tv_tomorrow_sunset, "日落 " + tomorrow.sunset);
 
         views.setTextViewText(R.id.btn_source, effectiveSource);
-        String cityName = today.cityDisplay.isEmpty() ? city : today.cityDisplay;
-        String footer = cityName + " · " + effectiveSource + " · 更新 " + nowTime();
-        views.setTextViewText(R.id.tv_footer, footer);
+        views.setTextViewText(R.id.tv_footer, footerText(city, today, tomorrow, effectiveSource));
 
         mgr.updateAppWidget(widgetId, views);
     }
 
-    private SunsetDataFetcher.DayData fetchDaySafe(String city, String source, boolean today) {
-        try {
-            return SunsetDataFetcher.fetchDay(city, source, today);
-        } catch (Exception e) {
-            return new SunsetDataFetcher.DayData();
+    /** 底部状态行。取数失败时把原因写出来，否则用户只能看到"待更新"，无从判断。 */
+    private String footerText(String city, SunsetDataFetcher.DayData today,
+                              SunsetDataFetcher.DayData tomorrow, String source) {
+        // display_city_name 形如 "吉林省-长春"，底部只留城市本身，省得挤成两行
+        String cityDisplay = today.cityDisplay;
+        int dash = cityDisplay.lastIndexOf('-');
+        if (dash >= 0 && dash + 1 < cityDisplay.length()) {
+            cityDisplay = cityDisplay.substring(dash + 1);
         }
+        String cityName = cityDisplay.isEmpty() ? city : cityDisplay;
+        String error = !today.error.isEmpty() ? today.error : tomorrow.error;
+        String status;
+        if (!error.isEmpty()) {
+            status = "取数失败 " + error;
+        } else if (!today.hasData) {
+            status = "暂无预报";
+        } else {
+            status = "更新 " + nowTime();
+        }
+        return cityName + " · " + source + " · " + status;
     }
 
     private String otherSource(String source) {
