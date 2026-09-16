@@ -15,16 +15,18 @@ public class SunsetDataFetcher {
     private static final String BASE_URL = "https://sunsetbot.top/detailed/";
 
     public static class DayData {
-        public String level = "—";
+        public boolean hasData = false;
+        public String level = "待更新";
         public String quality = "—";
         public String sunrise = "—:—";
         public String sunset = "—:—";
+        public String cityDisplay = "";
     }
 
     /**
      * 拉取某一天的火烧云预测数据。
      *
-     * @param city   城市名，如 "上海"
+     * @param city   城市简称，如 "长春"
      * @param source 数据源，EC 或 GFS
      * @param today  true 为今天，false 为明天
      */
@@ -34,13 +36,15 @@ public class SunsetDataFetcher {
 
         DayData data = new DayData();
 
-        // 日落是火烧云预测的核心，失败则向上抛出
+        // 日落是火烧云预测的核心，网络失败则向上抛异常
         JSONObject sunset = fetchEvent(city, source, sunsetEvent);
+        data.cityDisplay = sunset.optString("display_city_name", "");
         String qualityRaw = sunset.optString("tb_quality", "");
         String[] q = parseQuality(qualityRaw);
         data.quality = q[0];
         data.level = q[1];
         data.sunset = parseTime(sunset.optString("tb_event_time", ""));
+        data.hasData = !data.level.isEmpty() && !"—".equals(data.level) && !"待更新".equals(data.level);
 
         // 日出时间单独获取，失败不影响日落预测
         try {
@@ -79,11 +83,7 @@ public class SunsetDataFetcher {
             }
 
             String body = readStream(conn.getInputStream());
-            JSONObject obj = new JSONObject(body);
-            if ("not_found".equals(obj.optString("status"))) {
-                throw new Exception("NO_DATA");
-            }
-            return obj;
+            return new JSONObject(body);
         } finally {
             if (conn != null) {
                 conn.disconnect();
@@ -105,7 +105,7 @@ public class SunsetDataFetcher {
     /** 解析 "0.022（微烧）" -> {"0.022", "微烧"} */
     private static String[] parseQuality(String raw) {
         if (raw == null || raw.isEmpty()) {
-            return new String[]{"—", "—"};
+            return new String[]{"—", "待更新"};
         }
         int s = raw.indexOf('（');
         int e = raw.indexOf('）');
@@ -117,7 +117,8 @@ public class SunsetDataFetcher {
         if (s >= 0 && e > s) {
             return new String[]{raw.substring(0, s), raw.substring(s + 1, e)};
         }
-        return new String[]{raw, ""};
+        // 无括号(如 "-" 或纯数值):等级视为待更新
+        return new String[]{raw, "待更新"};
     }
 
     /** 解析 "2026-09-16 18:03:52" -> "18:03" */

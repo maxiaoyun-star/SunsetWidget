@@ -21,10 +21,11 @@ public class SunsetWidgetProvider extends AppWidgetProvider {
     public static final String ACTION_TOGGLE_SOURCE = "com.sunset.widget.ACTION_TOGGLE_SOURCE";
 
     public static final String PREFS_NAME = "sunset_prefs";
-    public static final String KEY_CITY = "city";
+    public static final String KEY_CITY_LIST = "city_list";
+    public static final String KEY_CURRENT_CITY = "current_city";
     public static final String KEY_SOURCE = "source";
-    private static final String DEFAULT_CITY = "上海";
-    private static final String DEFAULT_SOURCE = "EC";
+    public static final String DEFAULT_CITY = "长春";
+    public static final String DEFAULT_SOURCE = "GFS";
 
     private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(1);
 
@@ -61,11 +62,11 @@ public class SunsetWidgetProvider extends AppWidgetProvider {
     /** 立即把小组件置为加载态并绑定点击，然后后台拉数据 */
     private void refreshWidget(Context context, AppWidgetManager mgr, int widgetId) {
         final SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        final String city = prefs.getString(KEY_CITY, DEFAULT_CITY);
+        final String city = prefs.getString(KEY_CURRENT_CITY, DEFAULT_CITY);
         final String source = prefs.getString(KEY_SOURCE, DEFAULT_SOURCE);
 
         RemoteViews views = buildBaseViews(context, widgetId, source);
-        views.setTextViewText(R.id.tv_footer, "加载中…");
+        views.setTextViewText(R.id.tv_footer, city + " 加载中…");
         mgr.updateAppWidget(widgetId, views);
 
         EXECUTOR.execute(new Runnable() {
@@ -80,28 +81,47 @@ public class SunsetWidgetProvider extends AppWidgetProvider {
     private void fetchAndRender(Context context, int widgetId, String city, String source) {
         AppWidgetManager mgr = AppWidgetManager.getInstance(context);
         RemoteViews views = buildBaseViews(context, widgetId, source);
-        try {
-            SunsetDataFetcher.DayData today = SunsetDataFetcher.fetchDay(city, source, true);
-            SunsetDataFetcher.DayData tomorrow = SunsetDataFetcher.fetchDay(city, source, false);
 
-            views.setTextViewText(R.id.tv_today_level, today.level);
-            views.setTextViewText(R.id.tv_today_quality, "鲜艳度 " + today.quality);
-            views.setTextViewText(R.id.tv_today_sunrise, "日出 " + today.sunrise);
-            views.setTextViewText(R.id.tv_today_sunset, "日落 " + today.sunset);
-
-            views.setTextViewText(R.id.tv_tomorrow_level, tomorrow.level);
-            views.setTextViewText(R.id.tv_tomorrow_quality, "鲜艳度 " + tomorrow.quality);
-            views.setTextViewText(R.id.tv_tomorrow_sunrise, "日出 " + tomorrow.sunrise);
-            views.setTextViewText(R.id.tv_tomorrow_sunset, "日落 " + tomorrow.sunset);
-
-            String footer = city + " · " + source + " · 更新 " + nowTime();
-            views.setTextViewText(R.id.tv_footer, footer);
-        } catch (Exception e) {
-            views.setTextViewText(R.id.tv_today_level, "—");
-            views.setTextViewText(R.id.tv_tomorrow_level, "—");
-            views.setTextViewText(R.id.tv_footer, city + " · " + source + " · 获取失败，点刷新重试");
+        String effectiveSource = source;
+        SunsetDataFetcher.DayData today = fetchDaySafe(city, source, true);
+        if (!today.hasData) {
+            String other = otherSource(source);
+            SunsetDataFetcher.DayData t2 = fetchDaySafe(city, other, true);
+            if (t2.hasData) {
+                today = t2;
+                effectiveSource = other;
+            }
         }
+        SunsetDataFetcher.DayData tomorrow = fetchDaySafe(city, effectiveSource, false);
+
+        views.setTextViewText(R.id.tv_today_level, today.level);
+        views.setTextViewText(R.id.tv_today_quality, today.hasData ? "鲜艳度 " + today.quality : "鲜艳度 —");
+        views.setTextViewText(R.id.tv_today_sunrise, "日出 " + today.sunrise);
+        views.setTextViewText(R.id.tv_today_sunset, "日落 " + today.sunset);
+
+        views.setTextViewText(R.id.tv_tomorrow_level, tomorrow.level);
+        views.setTextViewText(R.id.tv_tomorrow_quality, tomorrow.hasData ? "鲜艳度 " + tomorrow.quality : "鲜艳度 —");
+        views.setTextViewText(R.id.tv_tomorrow_sunrise, "日出 " + tomorrow.sunrise);
+        views.setTextViewText(R.id.tv_tomorrow_sunset, "日落 " + tomorrow.sunset);
+
+        views.setTextViewText(R.id.btn_source, effectiveSource);
+        String cityName = today.cityDisplay.isEmpty() ? city : today.cityDisplay;
+        String footer = cityName + " · " + effectiveSource + " · 更新 " + nowTime();
+        views.setTextViewText(R.id.tv_footer, footer);
+
         mgr.updateAppWidget(widgetId, views);
+    }
+
+    private SunsetDataFetcher.DayData fetchDaySafe(String city, String source, boolean today) {
+        try {
+            return SunsetDataFetcher.fetchDay(city, source, today);
+        } catch (Exception e) {
+            return new SunsetDataFetcher.DayData();
+        }
+    }
+
+    private String otherSource(String source) {
+        return "EC".equals(source) ? "GFS" : "EC";
     }
 
     /** 创建视图并绑定所有点击事件（每次更新都要重新绑定，否则按钮失效） */
